@@ -1,0 +1,51 @@
+{
+  "name": "mern-access",
+  "version": "2.1.0",
+  "description": "Plug-and-play authentication module for MERN apps (OTP + JWT, refresh rotation, revocation).",
+  "main": "index.js",
+  "license": "MIT",
+  "author": "Sbonelo Dube <sbonelosthole97@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sbonelosth/mern-access.git"
+  },
+  "keywords": [
+    "mern",
+    "auth",
+    "authentication",
+    "jwt",
+    "otp",
+    "refresh-tokens",
+    "express",
+    "mongoose",
+    "node"
+  ],
+  "files": [
+    "index.js",
+    "controllers/",
+    "lib/",
+    "cli.js",
+    "routes/",
+    "middleware/",
+    "README.md",
+    "LICENSE"
+  ],
+  "bin": {
+    "mern-access": "cli.js"
+  },
+  "scripts": {
+    "test": "echo \"No tests specified\" && exit 0"
+  },
+  "dependencies": {
+    "bcrypt": "^5.1.1",
+    "jsonwebtoken": "^9.0.2",
+    "ms": "^2.1.3"
+  },
+  "peerDependencies": {
+    "express": ">=4.18.0",
+    "mongoose": ">=7.0.0"
+  },
+  "optionalDependencies": {
+    "nodemailer": "^6.9.13"
+  }
+}
