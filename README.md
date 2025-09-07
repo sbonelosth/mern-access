@@ -1,6 +1,6 @@
 # mern-access
 
-Authentication & authorization made simple for MERN apps — includes JWT access/refresh tokens, OTP email verification, and session management out of the box.
+```mern-access``` is a plug-and-play authentication and authorization solution for MERN applications. It provides a ready-made set of Express routes, middleware, and utilities for handling user sign-up, login, email verification via OTP, and session management — all wired up with a MongoDB + Mongoose connection.
 
 ---
 
@@ -9,7 +9,7 @@ Authentication & authorization made simple for MERN apps — includes JWT access
 Run one of the following on an empty project folder to create a ready-to-use auth setup:
 
 ```bash
-# Without nodemailer (logs emails to console)
+# Without nodemailer
 npx mern-access init
 
 # With nodemailer
@@ -135,7 +135,7 @@ const config = require("./auth.config");
     const PORT = process.env.PORT || 4001;
     app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
   } catch (err) {
-    console.error("❌ MongoDB connection failed:", err.message);
+    console.error("❌ [mern-access] connection failed:", err.message);
     process.exit(1);
   }
 })();
@@ -174,13 +174,14 @@ npm run dev
 
 ## 4. Routes
 
-| Method | Endpoint       | Description |
-|--------|----------------|-------------|
-| POST   | `/auth/signup` | Create new user, send OTP |
-| POST   | `/auth/verify` | Works in 3 modes: send OTP, resend OTP, verify OTP |
-| POST   | `/auth/login`  | Login with email/username + password |
-| POST   | `/auth/access` | Refresh access token using refresh cookie |
-| POST   | `/auth/logout-everywhere` | Logout from all sessions |
+| Method | Endpoint                  | Description                                        | Expected Data                                                  |
+| ------ | ------------------------- | -------------------------------------------------- | -------------------------------------------------------------- |
+| POST   | `/auth/signup`            | Create new user and send OTP                       | **body:** `{ email, username, password, role? }`                      |
+| POST   | `/auth/verify`            | Send OTP / resend OTP / verify OTP | **body:** `{ email }` (send/resend), `{ email, otp }` (verify) |
+| POST   | `/auth/login`             | Login with email/username + password               | **body:** `{ emailOrUsername, password }`                      |
+| POST   | `/auth/access`            | Refresh access token using refresh cookie          | **headers["authorization"]:** `Bearer token`                   |
+| POST   | `/auth/logout-everywhere` | Logout from all sessions                           | **body:** `{ username }`                   |
+|
 
 ---
 
