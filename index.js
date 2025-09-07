@@ -2,24 +2,47 @@ const authController = require("./controllers/authController");
 const authRoutes = require("./routes/authRoutes");
 const authMiddleware = require("./middleware/authMiddleware");
 
-/**
- * Initialize MERN Auth
- * @param {Object} config - configuration (jwt secrets, expiries, cookies, email template, map user data function)
- * @param {Function} sendEmail - async ({ to, subject, html }) => void
- * @param {Model} User - required custom Mongoose model / user schema
- * @returns {{ router: import('express').Router, protect: Function, User: any }}
- */
-function initAuth(config, sendEmail, User) {
+function initMernAccess(config) {
   if (!config?.jwt?.accessSecret || !config?.jwt?.refreshSecret) {
-    throw new Error("initAuth: jwt.accessSecret and jwt.refreshSecret are required");
+    throw new Error("initMernAccess: jwt.accessSecret and jwt.refreshSecret are required");
   }
 
-  const mapUserData = config.mapUserData;
+  // --- Normalize config defaults ---
+  if (typeof config.mapUserData !== "function") {
+    config.mapUserData = (user) => ({
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      isEmailVerified: user.isEmailVerified,
+      otpExpiry: user.otpExpiry,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    });
+  }
 
-  const controller = authController(config, User, sendEmail, mapUserData);
+  if (typeof config.sendEmail !== "function") {
+    config.sendEmail = async ({ to, subject, html }) => {
+      console.log("📧 [DEV MODE] Email not sent (no sendEmail provided):", { to, subject, html });
+    };
+  }
+
+  if (!config.email) config.email = {};
+  if (typeof config.email.body !== "function") {
+    config.email.body = ({ username, otp, otpExpiry }) =>
+      `<p>Hello ${username}, your code is <b>${otp}</b>${
+        otpExpiry ? " and valid for " + otpExpiry : ""
+      }.</p>`;
+  }
+  if (!config.email.subject) {
+    config.email.subject = "Email Verification Code";
+  }
+
+  // --- Init core ---
+  const controller = authController(config);
   const protect = authMiddleware(config);
   const router = authRoutes(controller, protect);
-  return { router, protect, User };
+
+  return { router, protect };
 }
 
-module.exports = { initAuth };
+module.exports = { initMernAccess };

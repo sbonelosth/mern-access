@@ -7,7 +7,7 @@ function authRoutes(ctrl, requireAuth) {
   router.post("/signup", ctrl.signup);
   router.post("/verify", ctrl.verify);
   router.post("/login", ctrl.login);
-  router.post("/refresh", ctrl.access);
+  router.post("/access", ctrl.access);
 
   // Protected
   router.post("/logout-everywhere", requireAuth, ctrl.logout);

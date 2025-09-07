@@ -5,22 +5,13 @@ const crypto = require("crypto");
 const generateOTP = require("../lib/otp");
 const { signTokens } = require("../lib/jwt");
 
-function authController(config, User, sendEmail, mapUserData) {
-  if (typeof mapUserData !== "function") {
-    mapUserData = (user) => ({
-      username: user.username,
-      email: user.email,
-      verified: user.verified,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
-    });
-  }
-
+function authController(config) {
   const refreshExpiryMs = ms(`${config.jwt.refreshExpiry}`);
+  let User = config.User; // Mongoose user model
 
   // --- SIGNUP ---
   const signup = async (req, res) => {
-    const { email, username, password } = req.body;
+    const { email, username, password, role } = req.body;
     try {
       if (!email || !username || !password) {
         return res.status(400).json({ success: false, error: "Missing required fields" });
@@ -34,37 +25,24 @@ function authController(config, User, sendEmail, mapUserData) {
 
       const hashedPwd = await bcrypt.hash(password, 10);
       const otp = generateOTP();
+      const otpExpiry = config.otpExpiry ? Date.now() + ms(`${config.otpExpiry}`) : null;
 
       const newUser = await User.create({
         email,
         username,
         password: hashedPwd,
-        joinDate: new Date(),
-        verified: false,
+        role,
         otp,
-        refreshTokens: [], // initialize empty
+        otpExpiry,
       });
 
-      if (typeof sendEmail === "function") {
-        // developer provided their own mailer
-        await sendEmail({
-          to: newUser.email,
-          subject: config.email?.subject || "Verify your account",
-          html: config.email?.body
-            ? config.email.body({ username: newUser.username, otp })
-            : `<p>Hello ${newUser.username}, your verification code is <b>${otp}</b></p>`,
-        });
-      } else {
-        // fallback: log to console so devs can still test OTP flows without mail setup
-        console.log("📧 [DEV MODE] Email not sent (no sendEmail provided):", {
-          to: newUser.email,
-          subject: config.email?.subject || "Verify your account",
-          html: config.email?.body
-            ? config.email.body({ username: newUser.username, otp })
-            : `<p>Hello ${newUser.username}, your verification code is <b>${otp}</b></p>`,
-        });
-      }
-
+      await config.sendEmail({
+        to: newUser.email,
+        subject: config.email?.subject || "Email Verification Code",
+        html: config.email?.body
+          ? config.email.body({ username: newUser.username, otp, otpExpiry: config.otpExpiry })
+          : `<p>Hello ${newUser.username}, your verification code is <b>${otp}</b>${otpExpiry && " and it's valid for " + config.otpExpiry}.</p>`,
+      });
 
       // Issue initial tokens
       const { accessToken, refreshToken } = signTokens(newUser.username, config);
@@ -83,9 +61,8 @@ function authController(config, User, sendEmail, mapUserData) {
 
       return res.status(200).json({
         success: true,
-        user: mapUserData(newUser),
+        user: config.mapUserData(newUser),
         accessToken,
-        refreshToken,
         message: "Signup successful. Verification code sent.",
       });
     } catch (err) {
@@ -108,36 +85,29 @@ function authController(config, User, sendEmail, mapUserData) {
         user.otp = newOtp;
         await user.save();
 
-        if (typeof sendEmail === "function") {
-          // developer provided their own mailer
-          await sendEmail({
-            to: user.email,
-            subject: config.email?.subject || "Verify your account",
-            html: config.email?.body
-              ? config.email.body({ username: user.username, otp: newOtp })
-              : `<p>Hello ${user.username}, your verification code is <b>${newOtp}</b></p>`,
-          });
-        } else {
-          // fallback: log to console so devs can still test OTP flows without mail setup
-          console.log("📧 [DEV MODE] Email not sent (no sendEmail provided):", {
-            to: user.email,
-            subject: config.email?.subject || "Verify your account",
-            html: config.email?.body
-              ? config.email.body({ username: user.username, otp: newOtp })
-              : `<p>Hello ${user.username}, your verification code is <b>${newOtp}</b></p>`,
-          });
-        }
+        
+        await config.sendEmail({
+          to: user.email,
+          subject: config.email?.subject || "Email Verification Code",
+          html: config.email?.body
+            ? config.email.body({ username: user.username, otp: newOtp, otpExpiry: config.otpExpiry })
+            : `<p>Hello ${user.username}, your verification code is <b>${newOtp}</b>${user.otpExpiry && " and it's valid for " + config.otpExpiry}.</p>>`,
+        });
 
         return res
           .status(200)
-          .json({ user, success: true, sent: true, message: "New verification code sent" });
+          .json({ user, success: true, isOtpSent: true, message: "New verification code sent" });
       }
 
       if (user.otp !== otp) {
         return res.status(401).json({ success: false, error: "Invalid code" });
       }
 
-      user.verified = true;
+      if (user.otpExpiry && user.otpExpiry < Date.now()) {
+        return res.status(401).json({ success: false, error: "Code expired, request a new one" });
+      }
+
+      user.isEmailVerified = true;
       user.otp = undefined;
 
       const { accessToken, refreshToken } = signTokens(user.username, config);
@@ -160,7 +130,7 @@ function authController(config, User, sendEmail, mapUserData) {
 
       return res.status(200).json({
         success: true,
-        user: mapUserData(user),
+        user: config.mapUserData(user),
         accessToken,
         message: "Account verified",
       });
@@ -172,10 +142,10 @@ function authController(config, User, sendEmail, mapUserData) {
 
   // --- LOGIN ---
   const login = async (req, res) => {
-    const { identifier, password } = req.body;
-    const query = (identifier || "").includes("@")
-      ? { email: identifier }
-      : { username: identifier };
+    const { id, password } = req.body;
+    const query = (id || "").includes("@")
+      ? { email: id }
+      : { username: id };
 
     try {
       const user = await User.findOne(query);
@@ -183,7 +153,7 @@ function authController(config, User, sendEmail, mapUserData) {
 
       const match = await bcrypt.compare(password || "", user.password);
       if (!match) return res.status(401).json({ success: false, error: "Invalid credentials" });
-      if (!user.verified)
+      if (!user.isEmailVerified)
         return res.status(403).json({ success: false, error: "Email not verified" });
 
       const { accessToken, refreshToken } = signTokens(user.username, config);
@@ -225,9 +195,8 @@ function authController(config, User, sendEmail, mapUserData) {
 
       return res.status(200).json({
         success: true,
-        user: mapUserData(user),
+        user: config.mapUserData(user),
         accessToken,
-        refreshToken, // send plaintext back to client
         message: "Login successful",
       });
     } catch (err) {
@@ -258,7 +227,7 @@ function authController(config, User, sendEmail, mapUserData) {
 
       return res.status(200).json({
         success: true,
-        user: mapUserData(user),
+        user: config.mapUserData(user),
         accessToken,
         message: "Access token renewed",
       });
