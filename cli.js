@@ -208,7 +208,7 @@ config.User = User;
     const PORT = process.env.PORT || 4001;
     app.listen(PORT, () => console.log(\`🚀 Server running on http://localhost:\${PORT}\`));
   } catch (err) {
-    console.error("❌ Mongo connection failed:", err.message);
+    console.error("❌ MERN Access connection failed:", err.message);
     process.exit(1);
   }
 })();
