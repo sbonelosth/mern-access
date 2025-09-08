@@ -72,8 +72,8 @@ module.exports = {
   jwt: {
     accessSecret: process.env.ACCESS_SECRET,
     refreshSecret: process.env.REFRESH_SECRET,
-    accessExpiry: "15m",
-    refreshExpiry: "7d"
+    accessExpiry: "1h",
+    refreshExpiry: "1d"
   },
   email: {
     subject: "Email Verification Code",
