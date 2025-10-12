@@ -1,6 +1,6 @@
 # mern-access
 
-```mern-access``` is a plug-and-play authentication and authorization solution for MERN applications. It provides a ready-made set of Express routes, middleware, and utilities for handling user sign-up, login, email verification via OTP, and session management — all wired up with a MongoDB + Mongoose connection.
+```mern-access``` is a plug-and-play authentication and authorization solution for MERN applications. It provides a ready-made set of Express routes, middleware, and utilities for handling user sign-up, login, email verification via OTP, password reset, and session management — all wired up with a MongoDB + Mongoose connection.
 
 ---
 
@@ -103,7 +103,6 @@ module.exports = {
 
 ```mapUserData``` controls what user info is exposed in responses.
 
-
 ---
 
 ### index.js
@@ -174,14 +173,152 @@ npm run dev
 
 ## 4. Routes
 
-| Method | Endpoint                  | Description                                        | Expected Data                                                  |
-| ------ | ------------------------- | -------------------------------------------------- | -------------------------------------------------------------- |
-| POST   | `/auth/signup`            | Create new user and send OTP                       | **body:** `{ email, username, password, role? }`                      |
-| POST   | `/auth/verify`            | Send OTP / resend OTP / verify OTP | **body:** `{ email }` (send/resend), `{ email, otp }` (verify) |
-| POST   | `/auth/login`             | Login with email/username + password               | **body:** `{ emailOrUsername, password }`                      |
-| POST   | `/auth/access`            | Refresh access token using refresh cookie          | **headers["authorization"]:** `Bearer token`                   |
-| POST   | `/auth/logout-everywhere` | Logout from all sessions                           | **body:** `{ username }`                   |
-|
+### POST `/auth/signup`
+**Description:** Create new user and send OTP  
+**Body:**  
+```json
+{
+  "email": "alice@example.com",
+  "username": "alice",
+  "password": "Secret123",
+  "role": "user" // optional
+}
+```
+**Returns:**  
+```json
+{
+  "success": true,
+  "user": { "username": "...", "email": "...", "role": "...", "isEmailVerified": false, ... },
+  "accessToken": "...",
+  "message": "Signup successful. Verification code sent."
+}
+```
+
+---
+
+### POST `/auth/verify`
+**Description:**  
+- **Send or resend OTP:**  
+  **Body:**  
+  ```json
+  { "email": "alice@example.com" }
+  ```
+  **Returns:**  
+  ```json
+  {
+    "user": { ... },
+    "success": true,
+    "isOtpSent": true,
+    "message": "New verification code sent"
+  }
+  ```
+
+- **Send or resend OTP by username:**  
+  **Body:**  
+  ```json
+  { "id": "alice" }
+  ```
+
+- **Verify OTP:**  
+  **Body:**  
+  ```json
+  { "id": "alice@example.com", "otp": "123456" }
+  ```
+  **Returns:**  
+  ```json
+  {
+    "success": true,
+    "user": { ... },
+    "accessToken": "...",
+    "message": "Account verified"
+  }
+  ```
+
+---
+
+### POST `/auth/login`
+**Description:** Login with email or username and password  
+**Body:**  
+```json
+{
+  "id": "alice@example.com", // or "alice"
+  "password": "Secret123"
+}
+```
+**Returns:**  
+```json
+{
+  "success": true,
+  "user": { ... },
+  "accessToken": "...",
+  "message": "Login successful"
+}
+```
+
+---
+
+### POST `/auth/access`
+**Description:** Refresh access token using access token  
+**Headers:**  
+`Authorization: Bearer <accessToken>`  
+**Returns:**  
+```json
+{
+  "success": true,
+  "user": { ... },
+  "accessToken": "...",
+  "message": "Access token renewed"
+}
+```
+
+---
+
+### POST `/auth/reset-password`
+**Description:**  
+- **Send or resend OTP for password reset:**  
+  **Body:**  
+  ```json
+  { "id": "alice@example.com" }
+  ```
+  *(No `otp` field means send code)*  
+  **Returns:**  
+  ```json
+  {
+    "user": { ... },
+    "success": true,
+    "isOtpSent": true,
+    "message": "Password reset code sent"
+  }
+  ```
+
+- **Reset password with OTP:**  
+  **Body:**  
+  ```json
+  { "id": "alice@example.com", "otp": "123456", "newPwd": "NewSecret123" }
+  ```
+  **Returns:**  
+  ```json
+  {
+    "success": true,
+    "message": "Password reset successful"
+  }
+  ```
+
+---
+
+### POST `/auth/logout-everywhere`
+**Description:** Logout from all sessions  
+**Body:**  
+```json
+{ "username": "alice" }
+```
+**Returns:**  
+```json
+{
+  "success": true,
+  "message": "Logged out from all devices"
+}
+```
 
 ---
 
@@ -192,7 +329,12 @@ Signup:
 curl -X POST http://localhost:4001/auth/signup -H "Content-Type: application/json" -d '{"email":"alice@example.com","username":"alice","password":"Secret123"}'
 ```
 
-Verify:
+Verify (send/resend code):
+```bash
+curl -X POST http://localhost:4001/auth/verify -H "Content-Type: application/json" -d '{"email":"alice@example.com"}'
+```
+
+Verify (with OTP):
 ```bash
 curl -X POST http://localhost:4001/auth/verify -H "Content-Type: application/json" -d '{"email":"alice@example.com","otp":"123456"}'
 ```
@@ -200,6 +342,16 @@ curl -X POST http://localhost:4001/auth/verify -H "Content-Type: application/jso
 Login:
 ```bash
 curl -X POST http://localhost:4001/auth/login -H "Content-Type: application/json" -d '{"id":"alice","password":"Secret123"}'
+```
+
+Reset password (send code):
+```bash
+curl -X POST http://localhost:4001/auth/reset-password -H "Content-Type: application/json" -d '{"id":"alice@example.com","newPwd":"NewSecret123"}'
+```
+
+Reset password (with OTP):
+```bash
+curl -X POST http://localhost:4001/auth/reset-password -H "Content-Type: application/json" -d '{"id":"alice@example.com","otp":"123456","newPwd":"NewSecret123"}'
 ```
 
 ---

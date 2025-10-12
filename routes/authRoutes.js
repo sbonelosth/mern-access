@@ -8,6 +8,7 @@ function authRoutes(ctrl, requireAuth) {
   router.post("/verify", ctrl.verify);
   router.post("/login", ctrl.login);
   router.post("/access", ctrl.access);
+  router.post("/reset-password", ctrl.reset);
 
   // Protected
   router.post("/logout-everywhere", requireAuth, ctrl.logout);
