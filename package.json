@@ -1,6 +1,6 @@
 {
   "name": "mern-access",
-  "version": "2.1.2",
+  "version": "2.1.3",
   "description": "Plug-and-play authentication module for MERN apps (OTP + JWT, refresh rotation, revocation).",
   "main": "index.js",
   "license": "MIT",
