@@ -11,8 +11,9 @@ function authController(config) {
 
   // --- SIGNUP ---
   const signup = async (req, res) => {
-    const { email, username, password, role } = req.body;
     try {
+      const { email, username, password, role, ...additionalFields } = req.body;
+
       if (!email || !username || !password) {
         return res
           .status(400)
@@ -35,14 +36,31 @@ function authController(config) {
         ? Date.now() + ms(`${config.otpExpiry}`)
         : null;
 
-      const newUser = await User.create({
+      // Get User model schema paths to validate additional fields
+      const userSchemaPaths = User.schema.paths;
+      const validAdditionalFields = {};
+
+      // Filter only fields that exist in the User schema
+      Object.keys(additionalFields).forEach((field) => {
+        if (
+          userSchemaPaths[field] &&
+          !["email", "username", "password", "role"].includes(field)
+        ) {
+          validAdditionalFields[field] = additionalFields[field];
+        }
+      });
+
+      const userData = {
         email,
         username,
         password: hashedPwd,
         role,
         otp,
         otpExpiry,
-      });
+        ...validAdditionalFields,
+      };
+
+      const newUser = await User.create(userData);
 
       await config.sendEmail({
         to: newUser.email,
@@ -131,14 +149,12 @@ function authController(config) {
               }.</p>>`,
         });
 
-        return res
-          .status(200)
-          .json({
-            user,
-            success: true,
-            isOtpSent: true,
-            message: "New verification code sent",
-          });
+        return res.status(200).json({
+          user,
+          success: true,
+          isOtpSent: true,
+          message: "New verification code sent",
+        });
       }
 
       if (user.otp !== otp) {
@@ -217,19 +233,17 @@ function authController(config) {
           to: user.email,
           subject: "Password Reset Code",
           html: `<p>Hello ${
-                user.username
-              }, your password reset code is <b>${newOtp}</b>${
-                user.otpExpiry && " and it's valid for " + config.otpExpiry
-              }.</p>>`,
+            user.username
+          }, your password reset code is <b>${newOtp}</b>${
+            user.otpExpiry && " and it's valid for " + config.otpExpiry
+          }.</p>>`,
         });
 
-        return res
-          .status(200)
-          .json({
-            success: true,
-            isOtpSent: true,
-            message: "Password reset code sent",
-          });
+        return res.status(200).json({
+          success: true,
+          isOtpSent: true,
+          message: "Password reset code sent",
+        });
       }
 
       if (user.otp !== otp) {
